@@ -12,7 +12,11 @@ dotenv.config();
 const app = express();
 
 // Middlewares
-app.use(cors());
+// Allow frontend at localhost:3000 to access backend
+app.use(cors({
+  origin: 'http://localhost:3000',
+  credentials: true
+}));
 app.use(express.json());
 
 // Routes

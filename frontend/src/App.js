@@ -2,6 +2,7 @@ import React from "react";
 import { BrowserRouter as Router, Routes, Route, Link } from "react-router-dom";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import Upload from "./pages/Upload"; 
 
 function App() {
   return (
@@ -15,11 +16,15 @@ function App() {
             <Link to="/register" className="text-green-500 hover:underline">
               Register
             </Link>
+            <Link to="/upload" className="text-purple-500 hover:underline">
+              Upload
+            </Link>
           </nav>
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
-            <Route path="/" element={<div className="text-center">🏠 Welcome! Choose Login or Register.</div>} />
+            <Route path="/upload" element={<Upload />} /> 
+            <Route path="/" element={<div className="text-center">🏠 Welcome! Choose Login, Register, or Upload.</div>} />
           </Routes>
         </div>
       </div>

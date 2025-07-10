@@ -1,6 +1,7 @@
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
+const xlsx = require('xlsx');
 const { protect } = require('../middleware/authMiddleware');
 
 const router = express.Router();
@@ -31,9 +32,24 @@ const upload = multer({ storage, fileFilter });
 
 // Route: POST /api/upload
 router.post('/', protect, upload.single('file'), (req, res) => {
-  res.json({
-    message: '✅ File uploaded successfully',
-    file: req.file
-  });
+  try {
+    const filePath = req.file.path;
+    // Read the file
+    const workbook = xlsx.readFile(filePath);
+    // Assume we just want the first sheet
+    const sheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
+    // Convert to JSON
+    const data = xlsx.utils.sheet_to_json(sheet);
+
+    res.json({
+      message: '✅ File uploaded and parsed successfully',
+      data
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Error parsing Excel file', error: err });
+  }
 });
+
 module.exports = router;

@@ -5,6 +5,8 @@ const dotenv = require('dotenv');
 const authRoutes = require('./routes/authRoutes');
 const { protect, isAdmin } = require('./middleware/authMiddleware');
 const uploadRoutes = require('./routes/uploadRoutes');
+const historyRoutes = require('./routes/history');
+
 
 
 dotenv.config();
@@ -22,6 +24,8 @@ app.use(express.json());
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/history', historyRoutes);
+
 
 
 // Example protected route (only for logged-in users)

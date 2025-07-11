@@ -2,7 +2,8 @@ import React from "react";
 import { BrowserRouter as Router, Routes, Route, Link } from "react-router-dom";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
-import Upload from "./pages/Upload"; 
+import Upload from "./pages/Upload";
+import LandingPage from "./pages/LandingPage"; // <-- Add this import
 
 function App() {
   return (
@@ -23,8 +24,8 @@ function App() {
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
-            <Route path="/upload" element={<Upload />} /> 
-            <Route path="/" element={<div className="text-center">🏠 Welcome! Choose Login, Register, or Upload.</div>} />
+            <Route path="/upload" element={<Upload />} />
+            <Route path="/" element={<LandingPage />} /> {/* Use LandingPage for "/" */}
           </Routes>
         </div>
       </div>

@@ -20,7 +20,7 @@ function Login() {
 
   return (
     <div className="max-w-md mx-auto mt-10 p-4 bg-white rounded shadow">
-      <h2 className="text-xl font-bold mb-4">Login</h2>
+      <h2 className="text-gray-900 dark:text-gray-100 text-xl font-semibold mb-4">Login</h2>
       <form onSubmit={handleSubmit} className="space-y-3">
         <input
           type="email"

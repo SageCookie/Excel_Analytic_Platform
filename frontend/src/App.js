@@ -1,9 +1,9 @@
 import React from "react";
-import { BrowserRouter as Router, Routes, Route, Link } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import LandingPage from "./pages/LandingPage";
+import Dashboard from "./pages/Dashboard";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
-import Upload from "./pages/Upload";
-import LandingPage from "./pages/LandingPage"; // <-- Add this import
 
 function App() {
   return (
@@ -22,10 +22,11 @@ function App() {
             </Link> */}
           </nav>
           <Routes>
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
-            <Route path="/upload" element={<Upload />} />
-            <Route path="/" element={<LandingPage />} /> {/* Use LandingPage for "/" */}
+            {/* Add more routes as needed */}
           </Routes>
         </div>
       </div>

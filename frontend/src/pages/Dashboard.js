@@ -24,39 +24,81 @@ function Dashboard() {
   const [chartType, setChartType] = useState('bar');
   const [history, setHistory] = useState([]);
   const [active, setActive] = useState('Dashboard'); // for sidebar navigation
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [historyError, setHistoryError] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
 
   // Fetch upload history
+  const fetchHistory = async () => {
+    setLoadingHistory(true);
+    setHistoryError('');
+    try {
+      const token = localStorage.getItem('token');
+      const user = JSON.parse(localStorage.getItem('user'));
+      const res = await axios.get(`http://localhost:5000/api/history/${user.id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setHistory(res.data.history); // Note: backend returns { success, history }
+    } catch (err) {
+      setHistoryError('❌ Failed to fetch history');
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchHistory = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        const res = await axios.get('http://localhost:5000/api/history', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        setHistory(res.data);
-      } catch (err) {
-        console.error('Failed to fetch history:', err);
-      }
-    };
     fetchHistory();
   }, []);
 
   // handle file upload
-  const handleFileUpload = (e) => {
+  const handleFileUpload = async (e) => {
+    setUploadError('');
     const file = e.target.files[0];
+    if (!file) {
+      setUploadError('Please select a file.');
+      return;
+    }
+    const allowedTypes = ['.xls', '.xlsx'];
+    const ext = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
+    if (!allowedTypes.includes(ext)) {
+      setUploadError('Only .xls and .xlsx files are allowed.');
+      return;
+    }
+    setUploading(true);
     const reader = new FileReader();
 
-    reader.onload = (evt) => {
-      const bstr = evt.target.result;
-      const wb = XLSX.read(bstr, { type: 'binary' });
-      const wsname = wb.SheetNames[0];
-      const ws = wb.Sheets[wsname];
+    reader.onload = async (evt) => {
+      try {
+        const bstr = evt.target.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
 
-      const data = XLSX.utils.sheet_to_json(ws, { defval: '' });
-      setExcelData(data);
+        const data = XLSX.utils.sheet_to_json(ws, { defval: '' });
+        setExcelData(data);
 
-      if (data.length > 0) {
-        setColumns(Object.keys(data[0]));
+        if (data.length > 0) {
+          setColumns(Object.keys(data[0]));
+        }
+
+        // Save upload history
+        const token = localStorage.getItem('token');
+        const user = JSON.parse(localStorage.getItem('user'));
+        await axios.post('http://localhost:5000/api/history/save', {
+          userId: user.id,
+          fileName: file.name,
+          xAxis: '',
+          yAxis: '',
+          chartType: '',
+        }, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        fetchHistory();
+      } catch (err) {
+        setUploadError('❌ Failed to upload or save history');
+      } finally {
+        setUploading(false);
       }
     };
 
@@ -97,6 +139,26 @@ function Dashboard() {
     setColumns([]);
     setXAxis('');
     setYAxis('');
+  };
+
+  // Save chart history
+  const saveChartHistory = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const user = JSON.parse(localStorage.getItem('user'));
+      await axios.post('http://localhost:5000/api/history/save', {
+        userId: user.id,
+        fileName: '', // You can store the file name if available
+        xAxis,
+        yAxis,
+        chartType,
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      fetchHistory();
+    } catch (err) {
+      console.error('Failed to save chart history:', err);
+    }
   };
 
   // Chart.js data with NaN protection
@@ -173,11 +235,20 @@ function Dashboard() {
                   {chartType === 'pie' && <Pie data={chartData} />}
                 </div>
                 <div className="flex gap-4 mt-2">
-                  <button onClick={exportAsImage} className="bg-green-600 text-white px-3 py-1 rounded">Export PNG</button>
+                  <button
+                    onClick={exportAsImage}
+                    disabled={!xAxis || !yAxis}
+                    className="bg-green-600 text-white px-3 py-1 rounded disabled:opacity-50"
+                  >
+                    Export PNG
+                  </button>
                   <button onClick={exportAsPDF} className="bg-red-600 text-white px-3 py-1 rounded">Export PDF</button>
+                  <button onClick={saveChartHistory} className="bg-blue-500 text-white px-3 py-1 rounded">Save Chart</button>
                 </div>
               </>
             )}
+            {uploading && <div className="text-blue-500 mb-2">Uploading file...</div>}
+            {uploadError && <div className="text-red-500 mb-2">{uploadError}</div>}
           </div>
         )}
 
@@ -208,6 +279,8 @@ function Dashboard() {
                 </table>
               </div>
             )}
+            {loadingHistory && <div className="text-blue-500 mb-2">Loading history...</div>}
+            {historyError && <div className="text-red-500 mb-2">{historyError}</div>}
           </div>
         )}
       </div>

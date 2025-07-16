@@ -2,13 +2,17 @@ import React, { useState } from 'react';
 import axios from 'axios';
 
 function Register() {
-  const [form, setForm] = useState({ username: '', email: '', password: '' });
+  const [form, setForm] = useState({ name: '', email: '', password: '' });
   const [message, setMessage] = useState('');
 
   const handleChange = e => setForm({ ...form, [e.target.name]: e.target.value });
 
   const handleSubmit = async e => {
     e.preventDefault();
+    if (!form.name || !form.email || !form.password) {
+      setMessage('❌ All fields are required.');
+      return;
+    }
     try {
       const res = await axios.post('http://localhost:5000/api/auth/register', form);
       localStorage.setItem('token', res.data.token);
@@ -24,9 +28,9 @@ function Register() {
       <form onSubmit={handleSubmit} className="space-y-3">
         <input
           type="text"
-          name="username"
-          placeholder="Username"
-          value={form.username}
+          name="name"
+          placeholder="Name"
+          value={form.name}
           onChange={handleChange}
           className="border p-2 w-full"
           required

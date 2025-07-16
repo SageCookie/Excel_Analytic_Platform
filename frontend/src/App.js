@@ -1,5 +1,6 @@
 import React from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { GoogleOAuthProvider } from '@react-oauth/google';
 import LandingPage from "./pages/LandingPage";
 import Dashboard from "./pages/Dashboard";
 import Login from "./pages/Login";
@@ -53,4 +54,10 @@ function App() {
   );
 }
 
-export default App;
+export default function Root() {
+  return (
+    <GoogleOAuthProvider clientId="1063717237880-sp354llroovpd6g49e4e4h1e6uh4bs4i.apps.googleusercontent.com">
+      <App />
+    </GoogleOAuthProvider>
+  );
+}

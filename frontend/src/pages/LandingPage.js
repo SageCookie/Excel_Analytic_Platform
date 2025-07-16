@@ -2,11 +2,14 @@ import React, { useState } from 'react';
 import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google';
 import Login from './Login';
 import Register from './Register';
+import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
 
 function LandingPage() {
   const [showLogin, setShowLogin] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
+  const navigate = useNavigate();
 
   const toggleDarkMode = () => {
     if (darkMode) {
@@ -15,6 +18,20 @@ function LandingPage() {
       document.documentElement.classList.add('dark');
     }
     setDarkMode(!darkMode);
+  };
+
+  // Add this handler
+  const handleGoogleSuccess = async (credentialResponse) => {
+    try {
+      const res = await axios.post('http://localhost:5000/api/auth/google', {
+        token: credentialResponse.credential,
+      });
+      localStorage.setItem('token', res.data.token);
+      localStorage.setItem('user', JSON.stringify(res.data.user));
+      navigate('/dashboard');
+    } catch (err) {
+      alert('❌ Google login failed');
+    }
   };
 
   return (
@@ -51,8 +68,8 @@ function LandingPage() {
               <div className="flex justify-center md:justify-start">
                 <GoogleLogin
                   width="192"
-                  onSuccess={credentialResponse => console.log('Google login success:', credentialResponse)}
-                  onError={() => console.log('Google login failed')}
+                  onSuccess={handleGoogleSuccess}
+                  onError={() => alert('❌ Google login failed')}
                 />
               </div>
             </div>

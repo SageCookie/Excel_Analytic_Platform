@@ -6,6 +6,9 @@ const History = require('../models/History');
 router.post('/save', async (req, res) => {
   try {
     const { userId, fileName, xAxis, yAxis, chartType } = req.body;
+    if (!userId || !fileName) {
+      return res.status(400).json({ success: false, message: 'userId and fileName are required.' });
+    }
     const history = new History({ userId, fileName, xAxis, yAxis, chartType });
     await history.save();
     res.json({ success: true, history });

@@ -10,6 +10,28 @@ import SavedAnalyses  from '../components/SavedAnalyses';
 import Profile        from '../components/Profile';
 import Upload         from './Upload';        // your Upload page/component
 
+// ─── Register Chart.js scales & elements ───────────────────────
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend
+} from 'chart.js';
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend
+);
+// ────────────────────────────────────────────────────────────────
+
+
 // small reusable KPI card
 const MetricCard = ({ icon, label, value }) => (
   <div className="bg-white rounded-lg shadow p-6 flex flex-col items-center">
@@ -86,9 +108,7 @@ export default function Dashboard() {
   const trendData = { labels:days, datasets:[{ data:uploadsPerDay, backgroundColor:'#3b82f6' }] };
   // ────────────────────────────────────────────────────────
 
-  const handleLogout = () => { localStorage.clear(); navigate('/login'); };
-
-  // ─── Delete saved-analysis handler ────────────────────────────────
+  // ─── Delete history entry ────────────────────────────────────────────
   const handleDeleteHistory = async (id) => {
     if (!window.confirm('Are you sure you want to delete this entry?')) return;
     try {
@@ -97,14 +117,16 @@ export default function Dashboard() {
         `${process.env.REACT_APP_API}/history/${id}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      // remove deleted record from state
+      // remove the deleted item from state
       setHistory(prev => prev.filter(h => h._id !== id));
     } catch (err) {
       console.error('Delete failed', err);
-      alert('Failed to delete, please try again.');
+      alert('Failed to delete the entry. Please try again.');
     }
   };
   // ────────────────────────────────────────────────────────────────────
+
+  const handleLogout = () => { localStorage.clear(); navigate('/login'); };
 
   return (
     <div className="flex h-screen bg-gray-100">
@@ -160,7 +182,7 @@ export default function Dashboard() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
-                          {history.slice(0,5).map((h,i)=>
+                          {history.slice(0,5).map((h,i)=>(
                             <tr key={i} className="hover:bg-gray-50">
                               <td className="px-4 py-2">{h.fileName}</td>
                               <td className="px-4 py-2">
@@ -168,7 +190,7 @@ export default function Dashboard() {
                               </td>
                               <td className="px-4 py-2">{h.rows ?? 'N/A'}</td>
                             </tr>
-                          )}
+                          ))}
                         </tbody>
                       </table>
                     </div>
@@ -221,7 +243,10 @@ export default function Dashboard() {
 
           {/* ─── Saved Analyses tab ───────────────────────────────────── */}
           {active === 'Saved Analyses' && (
-            <SavedAnalyses history={history} onDelete={handleDeleteHistory}/>
+            <SavedAnalyses 
+              history={history} 
+              onDelete={handleDeleteHistory} 
+            />
           )}
 
           {/* ─── Profile tab ───────────────────────────────────────────── */}

@@ -6,7 +6,9 @@ const historySchema = new mongoose.Schema({
   uploadDate: { type: Date, default: Date.now },
   xAxis: String,
   yAxis: String,
-  chartType: String
+  chartType: String,
+  rows:      Number,
+  fileSize:  Number
 });
 
 module.exports = mongoose.model('History', historySchema);

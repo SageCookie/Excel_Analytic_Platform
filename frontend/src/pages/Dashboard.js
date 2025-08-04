@@ -1,291 +1,235 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import * as XLSX from 'xlsx';
-import { Bar, Line, Pie } from 'react-chartjs-2';
-import {
-  Chart as ChartJS, CategoryScale, LinearScale, BarElement, LineElement, PointElement, ArcElement, Title, Tooltip, Legend
-} from 'chart.js';
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
-import Sidebar from '../components/Sidebar'; // 🧩 remember to create Sidebar.js
+import Sidebar from '../components/Sidebar';
+import { Bar } from 'react-chartjs-2';
 
-// Register Chart.js components
-ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, ArcElement, Title, Tooltip, Legend);
+// import the other views
+import RecentUploads from '../components/RecentUploads';
+import SavedAnalyses  from '../components/SavedAnalyses';
+import Profile        from '../components/Profile';
+import Upload         from './Upload';        // your Upload page/component
 
-function Dashboard() {
+// small reusable KPI card
+const MetricCard = ({ icon, label, value }) => (
+  <div className="bg-white rounded-lg shadow p-6 flex flex-col items-center">
+    <div className="text-3xl mb-2">{icon}</div>
+    <div className="text-2xl font-bold">{value}</div>
+    <div className="text-gray-500 mt-1">{label}</div>
+  </div>
+);
+
+export default function Dashboard() {
   const navigate = useNavigate();
-  const user = JSON.parse(localStorage.getItem('user'));
+  const user     = JSON.parse(localStorage.getItem('user'));
+  
+  // ─── state ──────────────────────────────────────────────
+  const [history, setHistory]           = useState([]);
+  const [loading, setLoading]           = useState(false);
+  const [error, setError]               = useState('');
+  const [active, setActive]             = useState('Dashboard');
+  // ────────────────────────────────────────────────────────
 
-  const [excelData, setExcelData] = useState([]);
-  const [columns, setColumns] = useState([]);
-  const [xAxis, setXAxis] = useState('');
-  const [yAxis, setYAxis] = useState('');
-  const [chartType, setChartType] = useState('bar');
-  const [history, setHistory] = useState([]);
-  const [active, setActive] = useState('Dashboard'); // for sidebar navigation
-  const [loadingHistory, setLoadingHistory] = useState(false);
-  const [historyError, setHistoryError] = useState('');
-  const [uploading, setUploading] = useState(false);
-  const [uploadError, setUploadError] = useState('');
-
-  // Fetch upload history
-  const fetchHistory = async () => {
-    setLoadingHistory(true);
-    setHistoryError('');
-    try {
-      const token = localStorage.getItem('token');
-      const user = JSON.parse(localStorage.getItem('user'));
-      const res = await axios.get(`http://localhost:5000/api/history/${user.id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setHistory(res.data.history); // Note: backend returns { success, history }
-    } catch (err) {
-      setHistoryError('❌ Failed to fetch history');
-    } finally {
-      setLoadingHistory(false);
-    }
-  };
-
+  // ─── fetch history ──────────────────────────────────────
   useEffect(() => {
-    fetchHistory();
-  }, []);
-
-  // handle file upload
-  const handleFileUpload = async (e) => {
-    setUploadError('');
-    const file = e.target.files[0];
-    if (!file) {
-      setUploadError('Please select a file.');
-      return;
-    }
-    const allowedTypes = ['.xls', '.xlsx'];
-    const ext = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
-    if (!allowedTypes.includes(ext)) {
-      setUploadError('Only .xls and .xlsx files are allowed.');
-      return;
-    }
-    setUploading(true);
-    const reader = new FileReader();
-
-    reader.onload = async (evt) => {
+    const fetchHistory = async () => {
+      setLoading(true);
       try {
-        const bstr = evt.target.result;
-        const wb = XLSX.read(bstr, { type: 'binary' });
-        const wsname = wb.SheetNames[0];
-        const ws = wb.Sheets[wsname];
-
-        const data = XLSX.utils.sheet_to_json(ws, { defval: '' });
-        setExcelData(data);
-
-        if (data.length > 0) {
-          setColumns(Object.keys(data[0]));
-        }
-
-        // Save upload history
         const token = localStorage.getItem('token');
-        const user = JSON.parse(localStorage.getItem('user'));
-        await axios.post('http://localhost:5000/api/history/save', {
-          userId: user.id,
-          fileName: file.name,
-          xAxis: '',
-          yAxis: '',
-          chartType: '',
-        }, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        fetchHistory();
-      } catch (err) {
-        setUploadError('❌ Failed to upload or save history');
+        const res = await axios.get(
+          `${process.env.REACT_APP_API}/history/${user.id}`,
+          { headers:{ Authorization:`Bearer ${token}` } }
+        );
+        setHistory(res.data.history || []);
+      } catch {
+        setError('Failed to load history');
       } finally {
-        setUploading(false);
+        setLoading(false);
       }
     };
+    fetchHistory();
+  }, [user.id]);
+  // ────────────────────────────────────────────────────────
 
-    reader.readAsBinaryString(file);
-  };
+  // ─── compute metrics ────────────────────────────────────
+  const totalUploads    = history.length;
+  const totalRows       = history.reduce((sum,h)=>sum+(h.rows||0),0);
+  const lastUpload      = history[0]?.uploadDate 
+                           ? new Date(history[0].uploadDate).toLocaleDateString() 
+                           : 'N/A';
+  const savedAnalyses   = history.filter(h=>h.chartType).length;
+  const avgRows         = totalUploads ? Math.round(totalRows/totalUploads) : 0;
+  const totalSizeKB     = ((history.reduce((s,h)=>s+(h.fileSize||0),0)/1024) || 0).toFixed(2);
+  const now             = new Date();
+  const thisWeekUploads = history.filter(h=>{
+    const d=new Date(h.uploadDate); 
+    return (now-d)/(1000*60*60*24)<=7;
+  }).length;
+  const thisMonthUploads= history.filter(h=>{
+    const d=new Date(h.uploadDate);
+    return d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear();
+  }).length;
+  // ────────────────────────────────────────────────────────
 
-  // Export as PNG
-  const exportAsImage = () => {
-    const chartContainer = document.getElementById('chartContainer');
-    html2canvas(chartContainer).then(canvas => {
-      const link = document.createElement('a');
-      link.download = 'chart.png';
-      link.href = canvas.toDataURL();
-      link.click();
-    });
-  };
+  // ── prepare trend chart (uploads per day) ──────────────
+  const days = Array.from({ length: 7 }).map((_, i) => {
+    const d = new Date(now);
+    d.setDate(now.getDate() - (6 - i));
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  });
+  const uploadsPerDay = days.map(day=>{
+    return history.filter(h=>{
+      const d=new Date(h.uploadDate).toLocaleDateString('en-US',{month:'short',day:'numeric'});
+      return d===day;
+    }).length;
+  });
+  const trendData = { labels:days, datasets:[{ data:uploadsPerDay, backgroundColor:'#3b82f6' }] };
+  // ────────────────────────────────────────────────────────
 
-  // Export as PDF
-  const exportAsPDF = () => {
-    const chartContainer = document.getElementById('chartContainer');
-    html2canvas(chartContainer).then(canvas => {
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF();
-      pdf.addImage(imgData, 'PNG', 10, 10, 180, 100); // Adjust size as needed
-      pdf.save('chart.pdf');
-    });
-  };
+  const handleLogout = () => { localStorage.clear(); navigate('/login'); };
 
-  // Logout handler
-  const handleLogout = () => {
-    localStorage.clear();
-    navigate('/');
-  };
-
-  // Clear dashboard handler
-  const handleClear = () => {
-    setExcelData([]);
-    setColumns([]);
-    setXAxis('');
-    setYAxis('');
-  };
-
-  // Save chart history
-  const saveChartHistory = async () => {
+  // ─── Delete saved-analysis handler ────────────────────────────────
+  const handleDeleteHistory = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this entry?')) return;
     try {
       const token = localStorage.getItem('token');
-      const user = JSON.parse(localStorage.getItem('user'));
-      await axios.post('http://localhost:5000/api/history/save', {
-        userId: user.id,
-        fileName: '', // You can store the file name if available
-        xAxis,
-        yAxis,
-        chartType,
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      fetchHistory();
+      await axios.delete(
+        `${process.env.REACT_APP_API}/history/${id}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      // remove deleted record from state
+      setHistory(prev => prev.filter(h => h._id !== id));
     } catch (err) {
-      console.error('Failed to save chart history:', err);
+      console.error('Delete failed', err);
+      alert('Failed to delete, please try again.');
     }
   };
-
-  // Chart.js data with NaN protection
-  const chartData = {
-    labels: excelData.map(row => row[xAxis]),
-    datasets: [
-      {
-        label: `${yAxis} vs ${xAxis}`,
-        data: excelData.map(row => Number(row[yAxis]) || 0), // NaN protection
-        backgroundColor: [
-          'rgba(37, 99, 235, 0.6)',
-          'rgba(16, 185, 129, 0.6)',
-          'rgba(251, 191, 36, 0.6)',
-          'rgba(239, 68, 68, 0.6)',
-          'rgba(168, 85, 247, 0.6)'
-        ],
-      },
-    ],
-  };
+  // ────────────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex min-h-screen">
-      <Sidebar active={active} setActive={setActive} />
-      
-      <div className="flex-1 p-6">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-2xl font-bold">Welcome, {user?.name || user?.email}!</h2>
-          <button onClick={handleLogout} className="bg-red-500 text-white px-3 py-1 rounded">Logout</button>
-        </div>
-
-        {/* Dashboard content based on sidebar */}
-        {active === 'Dashboard' && (
-          <>
-            <h3 className="text-xl font-semibold mb-2">📈 Quick Summary</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-              <div className="bg-white dark:bg-gray-800 shadow p-4 rounded text-center">
-                <div className="text-xl font-bold">{history.length}</div>
-                <div className="text-sm">Total Uploads</div>
-              </div>
-              {/* Add more summary cards here if needed */}
-            </div>
-          </>
-        )}
-
-        {active === 'Upload File' && (
-          <div>
-            <h3 className="text-xl font-semibold mb-4">📤 Upload New Excel File</h3>
-            <div className="flex items-center gap-4 mb-4">
-              <input type="file" accept=".xlsx, .xls" onChange={handleFileUpload} />
-              <button onClick={handleClear} className="bg-gray-300 text-gray-800 px-3 py-1 rounded">Clear</button>
-            </div>
-            {columns.length > 0 && (
-              <div className="flex flex-col md:flex-row gap-4 mb-4">
-                <select value={xAxis} onChange={e => setXAxis(e.target.value)} className="border px-3 py-2 rounded">
-                  <option value="">Select X-axis</option>
-                  {columns.map(col => <option key={col}>{col}</option>)}
-                </select>
-                <select value={yAxis} onChange={e => setYAxis(e.target.value)} className="border px-3 py-2 rounded">
-                  <option value="">Select Y-axis</option>
-                  {columns.map(col => <option key={col}>{col}</option>)}
-                </select>
-                <select value={chartType} onChange={e => setChartType(e.target.value)} className="border px-3 py-2 rounded">
-                  <option value="bar">Bar</option>
-                  <option value="line">Line</option>
-                  <option value="pie">Pie</option>
-                </select>
-              </div>
-            )}
-            {(xAxis && yAxis) && (
-              <>
-                <div id="chartContainer" className="bg-white p-4 rounded shadow max-w-4xl">
-                  {chartType === 'bar' && <Bar data={chartData} />}
-                  {chartType === 'line' && <Line data={chartData} />}
-                  {chartType === 'pie' && <Pie data={chartData} />}
-                </div>
-                <div className="flex gap-4 mt-2">
-                  <button
-                    onClick={exportAsImage}
-                    disabled={!xAxis || !yAxis}
-                    className="bg-green-600 text-white px-3 py-1 rounded disabled:opacity-50"
-                  >
-                    Export PNG
-                  </button>
-                  <button onClick={exportAsPDF} className="bg-red-600 text-white px-3 py-1 rounded">Export PDF</button>
-                  <button onClick={saveChartHistory} className="bg-blue-500 text-white px-3 py-1 rounded">Save Chart</button>
-                </div>
-              </>
-            )}
-            {uploading && <div className="text-blue-500 mb-2">Uploading file...</div>}
-            {uploadError && <div className="text-red-500 mb-2">{uploadError}</div>}
+    <div className="flex h-screen bg-gray-100">
+      <Sidebar active={active} setActive={setActive}/>
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* header */}
+        <header className="flex items-center justify-between bg-white shadow px-6 py-4">
+          <h1 className="text-2xl font-semibold text-gray-800">Dashboard</h1>
+          <div className="flex items-center space-x-4">
+            <span className="text-gray-600">{user?.name || user?.email}</span>
+            <button
+              onClick={handleLogout}
+              className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded"
+            >
+              Logout
+            </button>
           </div>
-        )}
+        </header>
 
-        {active === 'My Files' && (
-          <div>
-            <h3 className="text-xl font-semibold mb-4">📂 My Uploaded Files</h3>
-            {history.length === 0 ? (
-              <div className="text-gray-500 text-center py-4">No files uploaded yet.</div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-sm text-left border mt-2">
-                  <thead className="bg-gray-200">
-                    <tr>
-                      <th className="px-2 py-1 border">File</th>
-                      <th className="px-2 py-1 border">Date</th>
-                      <th className="px-2 py-1 border">Rows</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {history.map((item, idx) => (
-                      <tr key={idx}>
-                        <td className="px-2 py-1 border">{item.filename}</td>
-                        <td className="px-2 py-1 border">{new Date(item.date).toLocaleDateString()}</td>
-                        <td className="px-2 py-1 border">{item.rows}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+        <main className="flex-1 overflow-auto px-6 py-8">
+          {/* ─── Dashboard tab ──────────────────────────────────────────── */}
+          {active === 'Dashboard' && (
+            <>
+              {/* KPI grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                <MetricCard icon="📁" label="Total Uploads"      value={totalUploads} />
+                <MetricCard icon="🔢" label="Total Rows"         value={totalRows} />
+                <MetricCard icon="📆" label="Last Upload Date"   value={lastUpload} />
+                <MetricCard icon="💾" label="Saved Analyses"     value={savedAnalyses} />
+                <MetricCard icon="📈" label="Avg Rows/Upload"    value={avgRows} />
+                <MetricCard icon="📦" label="Total Size (KB)"    value={totalSizeKB} />
+                <MetricCard icon="📅" label="Uploads This Week"  value={thisWeekUploads} />
+                <MetricCard icon="🗓️" label="Uploads This Month" value={thisMonthUploads} />
               </div>
-            )}
-            {loadingHistory && <div className="text-blue-500 mb-2">Loading history...</div>}
-            {historyError && <div className="text-red-500 mb-2">{historyError}</div>}
-          </div>
-        )}
+
+              {/* two-column layout */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-8">
+                {/* recent uploads */}
+                <section className="lg:col-span-2 bg-white rounded-lg shadow p-6">
+                  <h2 className="text-xl font-semibold mb-4">Recent Uploads</h2>
+                  {loading ? (
+                    <p className="text-gray-500">Loading...</p>
+                  ) : error ? (
+                    <p className="text-red-500">{error}</p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full table-auto divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-4 py-2 text-left">File</th>
+                            <th className="px-4 py-2 text-left">Date</th>
+                            <th className="px-4 py-2 text-left">Rows</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {history.slice(0,5).map((h,i)=>
+                            <tr key={i} className="hover:bg-gray-50">
+                              <td className="px-4 py-2">{h.fileName}</td>
+                              <td className="px-4 py-2">
+                                {new Date(h.uploadDate).toLocaleDateString()||'N/A'}
+                              </td>
+                              <td className="px-4 py-2">{h.rows ?? 'N/A'}</td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </section>
+
+                {/* uploads trend & quick actions */}
+                <aside className="space-y-6">
+                  <div className="bg-white rounded-lg shadow p-6">
+                    <h2 className="text-xl font-semibold mb-4">Uploads Trend</h2>
+                    <Bar data={trendData} options={{ plugins:{ legend:{ display:false } } }} />
+                  </div>
+                  <div className="bg-white rounded-lg shadow p-6">
+                    <h2 className="text-xl font-semibold mb-4">Quick Actions</h2>
+                    <div className="flex flex-col space-y-3">
+                      <button
+                        onClick={()=>navigate('/upload')}
+                        className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-left"
+                      >
+                        📤 Upload New File
+                      </button>
+                      <button
+                        onClick={()=>navigate('/history')}
+                        className="w-full bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded text-left"
+                      >
+                        📁 View All Files
+                      </button>
+                      <button
+                        onClick={()=>navigate('/saved-analyses')}
+                        className="w-full bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded text-left"
+                      >
+                        💾 Saved Analyses
+                      </button>
+                    </div>
+                  </div>
+                </aside>
+              </div>
+            </>
+          )}
+
+          {/* ─── Upload File tab ───────────────────────────────────────── */}
+          {active === 'Upload File' && (
+            <Upload />
+          )}
+
+          {/* ─── My Files tab ──────────────────────────────────────────── */}
+          {active === 'My Files' && (
+            <RecentUploads history={history}/>
+          )}
+
+          {/* ─── Saved Analyses tab ───────────────────────────────────── */}
+          {active === 'Saved Analyses' && (
+            <SavedAnalyses history={history} onDelete={handleDeleteHistory}/>
+          )}
+
+          {/* ─── Profile tab ───────────────────────────────────────────── */}
+          {active === 'Profile' && (
+            <Profile user={user}/>
+          )}
+        </main>
       </div>
     </div>
   );
 }
-
-export default Dashboard;

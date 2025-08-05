@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Sidebar from '../components/Sidebar';
 import { Bar } from 'react-chartjs-2';
+import PageContainer from '../components/PageContainer';
 
 // import the other views
 import RecentUploads from '../components/RecentUploads';
@@ -146,113 +147,108 @@ export default function Dashboard() {
           </div>
         </header>
 
-        <main className="flex-1 overflow-auto px-6 py-8">
-          {/* ─── Dashboard tab ──────────────────────────────────────────── */}
-          {active === 'Dashboard' && (
-            <>
-              {/* KPI grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                <MetricCard icon="📁" label="Total Uploads"      value={totalUploads} />
-                <MetricCard icon="🔢" label="Total Rows"         value={totalRows} />
-                <MetricCard icon="📆" label="Last Upload Date"   value={lastUpload} />
-                <MetricCard icon="💾" label="Saved Analyses"     value={savedAnalyses} />
-                <MetricCard icon="📈" label="Avg Rows/Upload"    value={avgRows} />
-                <MetricCard icon="📦" label="Total Size (KB)"    value={totalSizeKB} />
-                <MetricCard icon="📅" label="Uploads This Week"  value={thisWeekUploads} />
-                <MetricCard icon="🗓️" label="Uploads This Month" value={thisMonthUploads} />
-              </div>
+        {/* make main only handle scroll & bg */}
+        <main className="flex-1 overflow-auto bg-gray-100">
+          {/* now wrap all your tab content in the shared container */}
+          <PageContainer>
+            {/* ─── Dashboard tab ──────────────────────────────────────────── */}
+            {active === 'Dashboard' && (
+              <>
+                {/* KPI grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                  <MetricCard icon="📁" label="Total Uploads"      value={totalUploads} />
+                  <MetricCard icon="🔢" label="Total Rows"         value={totalRows} />
+                  <MetricCard icon="📆" label="Last Upload Date"   value={lastUpload} />
+                  <MetricCard icon="💾" label="Saved Analyses"     value={savedAnalyses} />
+                  <MetricCard icon="📈" label="Avg Rows/Upload"    value={avgRows} />
+                  <MetricCard icon="📦" label="Total Size (KB)"    value={totalSizeKB} />
+                  <MetricCard icon="📅" label="Uploads This Week"  value={thisWeekUploads} />
+                  <MetricCard icon="🗓️" label="Uploads This Month" value={thisMonthUploads} />
+                </div>
 
-              {/* two-column layout */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-8">
-                {/* recent uploads */}
-                <section className="lg:col-span-2 bg-white rounded-lg shadow p-6">
-                  <h2 className="text-xl font-semibold mb-4">Recent Uploads</h2>
-                  {loading ? (
-                    <p className="text-gray-500">Loading...</p>
-                  ) : error ? (
-                    <p className="text-red-500">{error}</p>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full table-auto divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="px-4 py-2 text-left">File</th>
-                            <th className="px-4 py-2 text-left">Date</th>
-                            <th className="px-4 py-2 text-left">Rows</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {history.slice(0,5).map((h,i)=>(
-                            <tr key={i} className="hover:bg-gray-50">
-                              <td className="px-4 py-2">{h.fileName}</td>
-                              <td className="px-4 py-2">
-                                {new Date(h.uploadDate).toLocaleDateString()||'N/A'}
-                              </td>
-                              <td className="px-4 py-2">{h.rows ?? 'N/A'}</td>
+                {/* two-column layout */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-8">
+                  {/* recent uploads */}
+                  <section className="lg:col-span-2 bg-white rounded-lg shadow p-6">
+                    <h2 className="text-xl font-semibold mb-4">Recent Uploads</h2>
+                    {loading ? (
+                      <p className="text-gray-500">Loading...</p>
+                    ) : error ? (
+                      <p className="text-red-500">{error}</p>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full table-auto divide-y divide-gray-200">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-4 py-2 text-left">File</th>
+                              <th className="px-4 py-2 text-left">Date</th>
+                              <th className="px-4 py-2 text-left">Rows</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {history.slice(0,5).map((h,i)=>(
+                              <tr key={i} className="hover:bg-gray-50">
+                                <td className="px-4 py-2">{h.fileName}</td>
+                                <td className="px-4 py-2">
+                                  {new Date(h.uploadDate).toLocaleDateString()||'N/A'}
+                                </td>
+                                <td className="px-4 py-2">{h.rows ?? 'N/A'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </section>
+
+                  {/* uploads trend & quick actions */}
+                  <aside className="space-y-6">
+                    <div className="bg-white rounded-lg shadow p-6">
+                      <h2 className="text-xl font-semibold mb-4">Uploads Trend</h2>
+                      <Bar data={trendData} options={{ plugins:{ legend:{ display:false } } }} />
                     </div>
-                  )}
-                </section>
-
-                {/* uploads trend & quick actions */}
-                <aside className="space-y-6">
-                  <div className="bg-white rounded-lg shadow p-6">
-                    <h2 className="text-xl font-semibold mb-4">Uploads Trend</h2>
-                    <Bar data={trendData} options={{ plugins:{ legend:{ display:false } } }} />
-                  </div>
-                  <div className="bg-white rounded-lg shadow p-6">
-                    <h2 className="text-xl font-semibold mb-4">Quick Actions</h2>
-                    <div className="flex flex-col space-y-3">
-                      <button
-                        onClick={()=>navigate('/upload')}
-                        className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-left"
-                      >
-                        📤 Upload New File
-                      </button>
-                      <button
-                        onClick={()=>navigate('/history')}
-                        className="w-full bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded text-left"
-                      >
-                        📁 View All Files
-                      </button>
-                      <button
-                        onClick={()=>navigate('/saved-analyses')}
-                        className="w-full bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded text-left"
-                      >
-                        💾 Saved Analyses
-                      </button>
+                    <div className="bg-white rounded-lg shadow p-6">
+                      <h2 className="text-xl font-semibold mb-4">Quick Actions</h2>
+                      <div className="flex flex-col space-y-3">
+                        <button
+                          onClick={() => setActive('Upload File')}
+                          className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-left"
+                        >
+                          📤 Upload New File
+                        </button>
+                        <button
+                          onClick={() => setActive('My Files')}
+                          className="w-full bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded text-left"
+                        >
+                          📁 View All Files
+                        </button>
+                        <button
+                          onClick={() => setActive('Saved Analyses')}
+                          className="w-full bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded text-left"
+                        >
+                          💾 Saved Analyses
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                </aside>
-              </div>
-            </>
-          )}
+                  </aside>
+                </div>
+              </>
+            )}
 
-          {/* ─── Upload File tab ───────────────────────────────────────── */}
-          {active === 'Upload File' && (
-            <Upload />
-          )}
+            {/* ─── Upload File tab ───────────────────────────────────────── */}
+            {active === 'Upload File' && <Upload history={history}/>}
 
-          {/* ─── My Files tab ──────────────────────────────────────────── */}
-          {active === 'My Files' && (
-            <RecentUploads history={history}/>
-          )}
+            {/* ─── My Files tab ──────────────────────────────────────────── */}
+            {active === 'My Files' && <RecentUploads history={history}/>}
 
-          {/* ─── Saved Analyses tab ───────────────────────────────────── */}
-          {active === 'Saved Analyses' && (
-            <SavedAnalyses 
-              history={history} 
-              onDelete={handleDeleteHistory} 
-            />
-          )}
+            {/* ─── Saved Analyses tab ───────────────────────────────────── */}
+            {active === 'Saved Analyses' && (
+              <SavedAnalyses history={history} onDelete={handleDeleteHistory}/>
+            )}
 
-          {/* ─── Profile tab ───────────────────────────────────────────── */}
-          {active === 'Profile' && (
-            <Profile user={user}/>
-          )}
+            {/* ─── Profile tab ───────────────────────────────────────────── */}
+            {active === 'Profile' && <Profile user={user}/>}
+          </PageContainer>
         </main>
       </div>
     </div>

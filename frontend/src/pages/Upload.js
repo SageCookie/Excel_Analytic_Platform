@@ -44,7 +44,7 @@ ChartJS.register(
 );
 // ────────────────────────────────────────────────────────────────
 
-export default function Upload({ history }) {
+export default function Upload({ history, selectedEntry }) {
   const [file, setFile]             = useState(null);
   const [message, setMessage]       = useState('');
   const [columns, setColumns]       = useState([]);
@@ -90,8 +90,17 @@ export default function Upload({ history }) {
   // build chart data when user picks axes
   useEffect(() => {
     if (jsonData.length && xAxis && yAxis) {
-      const labels = jsonData.map(r => r[xAxis]);
-      const data   = jsonData.map(r => r[yAxis]);
+      // force all labels to strings so Chart.js can split them safely
+      const labels = jsonData.map(r => {
+        const v = r[xAxis];
+        return v == null ? '' : String(v);
+      });
+
+      // ensure numerical data
+      const data = jsonData.map(r => {
+        const v = r[yAxis];
+        return typeof v === 'number' ? v : parseFloat(v) || 0;
+      });
 
       // a palette of vibrant colors
       const baseColors = [
@@ -126,19 +135,34 @@ export default function Upload({ history }) {
       return;
     }
     setUploading(true);
-    const token = localStorage.getItem('token');
-    const form  = new FormData();
+
+    // prepare form data & auth token
+    const form = new FormData();
     form.append('file', file);
     form.append('xAxis', xAxis);
     form.append('yAxis', yAxis);
     form.append('chartType', chartType);
+    const token = localStorage.getItem('token');
+
+    // ensure we hit the correct mount point
+    const endpoint = `${process.env.REACT_APP_API}/upload`;
+    console.log('Uploading to', endpoint);
+
     try {
-      const res = await axios.post(`${process.env.REACT_APP_API}/upload`, form, {
-        headers: { 'Content-Type':'multipart/form-data', Authorization:`Bearer ${token}` }
-      });
+      const res = await axios.post(
+        endpoint,
+        form,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+            Authorization: `Bearer ${token}`
+          }
+        }
+      );
       setMessage(`✅ ${res.data.message}`);
-    } catch {
-      setMessage('❌ Upload failed.');
+    } catch (err) {
+      console.error('Upload error:', err);
+      setMessage(`❌ Upload failed: ${err.response?.data?.message || err.message}`);
     } finally {
       setUploading(false);
     }
@@ -196,6 +220,23 @@ export default function Upload({ history }) {
         />;
     }
   };
+
+  useEffect(() => {
+    if (selectedEntry) {
+      const token = localStorage.getItem('token');
+      axios.get(
+        `${process.env.REACT_APP_API}/upload/download/${selectedEntry._id}`,
+        { responseType:'arraybuffer', headers:{ Authorization:`Bearer ${token}` }}
+      ).then(res => {
+        const f = new File([res.data], selectedEntry.fileName);
+        setFile(f);
+        parseFile(f);
+        setXAxis(selectedEntry.xAxis);
+        setYAxis(selectedEntry.yAxis);
+        setChartType(selectedEntry.chartType);
+      });
+    }
+  }, [selectedEntry]);
 
   return (
     <PageContainer title="Upload File">
@@ -312,11 +353,55 @@ export default function Upload({ history }) {
         </div>
       </div>
 
-      {/* ─── Chart Preview ─────────────────────────────────────── */}
+      {/* ─── Chart Preview with Inline Controls ─────────────────────── */}
       {previewData && (
-        <div className="mt-8 bg-white rounded-lg shadow-lg p-6">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">Chart Preview</h3>
-          <ChartComponent data={previewData} />
+        <div className="mt-8 flex flex-col md:flex-row gap-6">
+          {/* Chart preview */}
+          <div className="md:flex-1 bg-white rounded-lg shadow-lg p-6">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">Chart Preview</h3>
+            <ChartComponent data={previewData} />
+          </div>
+          {/* Chart controls */}
+          <div className="md:w-1/3 bg-white rounded-lg shadow-lg p-6 space-y-4">
+            <h3 className="text-lg font-semibold text-gray-800">Adjust Chart</h3>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">X-Axis Column</label>
+              <select
+                value={xAxis}
+                onChange={e => setXAxis(e.target.value)}
+                className="block w-full border-gray-300 rounded-md p-2"
+              >
+                <option value="">Choose column…</option>
+                {columns.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Y-Axis Column</label>
+              <select
+                value={yAxis}
+                onChange={e => setYAxis(e.target.value)}
+                className="block w-full border-gray-300 rounded-md p-2"
+              >
+                <option value="">Choose column…</option>
+                {columns.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Chart Type</label>
+              <select
+                value={chartType}
+                onChange={e => setChartType(e.target.value)}
+                className="block w-full border-gray-300 rounded-md p-2"
+              >
+                <option value="bar">Bar</option>
+                <option value="line">Line</option>
+                <option value="pie">Pie</option>
+                <option value="doughnut">Doughnut</option>
+                <option value="polarArea">Polar Area</option>
+                <option value="radar">Radar</option>
+              </select>
+            </div>
+          </div>
         </div>
       )}
     </PageContainer>

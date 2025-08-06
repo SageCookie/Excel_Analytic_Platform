@@ -5,8 +5,9 @@ import Sidebar from '../components/Sidebar';
 import { Bar } from 'react-chartjs-2';
 import PageContainer from '../components/PageContainer';
 
+
 // import the other views
-import RecentUploads from '../components/RecentUploads';
+import MyFiles from './MyFiles';
 import SavedAnalyses  from '../components/SavedAnalyses';
 import Profile        from '../components/Profile';
 import Upload         from './Upload';        // your Upload page/component
@@ -51,6 +52,7 @@ export default function Dashboard() {
   const [loading, setLoading]           = useState(false);
   const [error, setError]               = useState('');
   const [active, setActive]             = useState('Dashboard');
+  const [selectedEntry, setSelectedEntry] = useState(null);
   // ────────────────────────────────────────────────────────
 
   // ─── fetch history ──────────────────────────────────────
@@ -127,7 +129,11 @@ export default function Dashboard() {
   };
   // ────────────────────────────────────────────────────────────────────
 
-  const handleLogout = () => { localStorage.clear(); navigate('/login'); };
+  const handleLogout = () => {
+    localStorage.clear();
+    // redirect back to LandingPage ("/") instead of the standalone Login form
+    navigate('/', { replace: true });
+  };
 
   return (
     <div className="flex h-screen bg-gray-100">
@@ -236,10 +242,24 @@ export default function Dashboard() {
             )}
 
             {/* ─── Upload File tab ───────────────────────────────────────── */}
-            {active === 'Upload File' && <Upload history={history}/>}
+            {active === 'Upload File' && (
+              <Upload
+                history={history}
+                selectedEntry={selectedEntry}
+              />
+            )}
 
             {/* ─── My Files tab ──────────────────────────────────────────── */}
-            {active === 'My Files' && <RecentUploads history={history}/>}
+            {active === 'My Files' && (
+              <MyFiles
+                history={history}
+                onDelete={handleDeleteHistory}
+                onView={entry => {
+                  setSelectedEntry(entry);
+                  setActive('Upload File');
+                }}
+              />
+            )}
 
             {/* ─── Saved Analyses tab ───────────────────────────────────── */}
             {active === 'Saved Analyses' && (

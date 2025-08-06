@@ -1,10 +1,10 @@
 const express = require('express');
-const multer = require('multer');
-const path = require('path');
-const xlsx = require('xlsx');
+const multer  = require('multer');
+const path    = require('path');
+const xlsx    = require('xlsx');
 const { protect } = require('../middleware/authMiddleware');
-
-const router = express.Router();
+const History = require('../models/History');
+const router  = express.Router();
 
 // Configure storage (for now, store in local 'uploads/' folder)
 const storage = multer.diskStorage({
@@ -31,25 +31,42 @@ const fileFilter = (req, file, cb) => {
 const upload = multer({ storage, fileFilter });
 
 // Route: POST /api/upload
-router.post('/', protect, upload.single('file'), (req, res) => {
+router.post('/', protect, upload.single('file'), async (req, res) => {
   try {
-    const filePath = req.file.path;
-    // Read the file
-    const workbook = xlsx.readFile(filePath);
-    // Assume we just want the first sheet
+    // parse workbook
+    const workbook = xlsx.readFile(req.file.path);
     const sheetName = workbook.SheetNames[0];
     const sheet = workbook.Sheets[sheetName];
-    // Convert to JSON
     const data = xlsx.utils.sheet_to_json(sheet);
 
-    res.json({
-      message: '✅ File uploaded and parsed successfully',
-      data
+    // save history with row count and stored filename
+    const entry = await History.create({
+      userId:     req.user.id,
+      fileName:   req.file.originalname,
+      storedName: req.file.filename,        // newly added
+      rows:       data.length,
+      fileSize:   req.file.size,
+      xAxis:      req.body.xAxis,
+      yAxis:      req.body.yAxis,
+      chartType:  req.body.chartType
     });
+
+    res.json({ message: '✅ Uploaded & history saved', data, history: entry });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: 'Error parsing Excel file', error: err });
+    res.status(500).json({ message: 'Error processing upload', error: err.message });
   }
+});
+
+// Download file by its History _id
+router.get('/download/:id', protect, async (req, res) => {
+  const entry = await History.findById(req.params.id);
+  if (!entry) {
+    return res.status(404).json({ message: 'Not found' });
+  }
+  // serve the file from uploads/
+  const filePath = path.join(__dirname, '../uploads', entry.storedName);
+  return res.download(filePath, entry.fileName);
 });
 
 module.exports = router;

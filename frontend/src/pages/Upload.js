@@ -1,10 +1,11 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import axios from 'axios';
 import PageContainer from '../components/PageContainer';
 import RecentUploads from '../components/RecentUploads';
 import { Bar, Line, Pie, Doughnut, PolarArea, Radar } from 'react-chartjs-2';
 import { CloudArrowUpIcon } from '@heroicons/react/24/outline';
+import { jsPDF } from 'jspdf';
 
 // ─── Register Chart.js scales, elements & controllers ─────────────────
 import {
@@ -54,6 +55,8 @@ export default function Upload({ history, selectedEntry }) {
   const [chartType, setChartType]   = useState('bar');
   const [previewData, setPreviewData] = useState(null);
   const [uploading, setUploading]   = useState(false);
+  const [saving, setSaving]         = useState(false);
+  const chartRef = useRef(null);
 
   // parse Excel file to JSON + extract columns
   const parseFile = f => {
@@ -168,58 +171,59 @@ export default function Upload({ history, selectedEntry }) {
     }
   };
 
-  const ChartComponent = ({ data }) => {
-    if (!data) return null;
-
-    const commonOptions = {
-      responsive: true,
-      plugins: { legend: { position: 'right' } },
-      scales: {
-        y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.1)' } },
-        x: { grid: { color: 'rgba(0,0,0,0.1)' } }
-      }
-    };
-
-    switch (chartType) {
-      case 'line':
-        return <Line
-          data={data}
-          options={{
-            ...commonOptions,
-            plugins: { legend: { display: false } },
-            elements: { line: { borderWidth: 3, borderColor: '#3b82f6', tension: 0.3 }, point: { radius: 4 } }
-          }}
-        />;
-
-      case 'pie':
-        return <Pie
-          data={data}
-          options={{
-            ...commonOptions,
-            plugins: { legend: { position: 'left' }, tooltip: { callbacks: { label: ctx => `${ctx.label}: ${ctx.parsed}` } } }
-          }}
-        />;
-
-      case 'doughnut':
-        return <Doughnut data={data} options={commonOptions} />;
-
-      case 'polarArea':
-        return <PolarArea data={data} options={commonOptions} />;
-
-      case 'radar':
-        return <Radar data={data} options={commonOptions} />;
-
-      default:  // bar
-        return <Bar
-          data={data}
-          options={{
-            ...commonOptions,
-            plugins: { legend: { display: false } },
-            scales: { ...commonOptions.scales, x: { ...commonOptions.scales.x, barPercentage: 0.6, categoryPercentage: 0.5 } }
-          }}
-        />;
+  const handleSave = async () => {
+    if (!previewData || !selectedEntry) return;
+    setSaving(true);
+    const token = localStorage.getItem('token');
+    try {
+      await axios.post(
+        `${process.env.REACT_APP_API}/analysis`,
+        {
+          historyId: selectedEntry._id,
+          xAxis, yAxis, chartType
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      alert('Analysis saved!');
+    } catch (err) {
+      console.error(err);
+      alert('Save failed');
+    } finally {
+      setSaving(false);
     }
   };
+
+  const exportAsImage = () => {
+    if (!chartRef.current) return;
+    const img = chartRef.current.toBase64Image();
+    const link = document.createElement('a');
+    link.href = img;
+    link.download = 'chart.png';
+    link.click();
+  };
+
+  const exportAsPDF = () => {
+    if (!chartRef.current) return;
+    const img = chartRef.current.toBase64Image();
+    const pdf = new jsPDF({ orientation: 'landscape' });
+    const { width, height } = pdf.internal.pageSize;
+    pdf.addImage(img, 'PNG', 0, 0, width, height);
+    pdf.save('chart.pdf');
+  };
+
+  // replace your existing ChartComponent with a forwardRef:
+  const ChartComponent = React.forwardRef(({ data }, ref) => {
+    if (!data) return null;
+    const opts = { responsive:true, plugins:{ legend:{position:'right'} } };
+    switch (chartType) {
+      case 'line':     return <Line     ref={ref} data={data} options={opts} />;
+      case 'pie':      return <Pie      ref={ref} data={data} options={opts} />;
+      case 'doughnut': return <Doughnut ref={ref} data={data} options={opts} />;
+      case 'polarArea':return <PolarArea ref={ref} data={data} options={opts} />;
+      case 'radar':    return <Radar    ref={ref} data={data} options={opts} />;
+      default:         return <Bar      ref={ref} data={data} options={opts} />;
+    }
+  });
 
   useEffect(() => {
     if (selectedEntry) {
@@ -240,6 +244,8 @@ export default function Upload({ history, selectedEntry }) {
 
   return (
     <PageContainer title="Upload File">
+      {/* removed top-of-page Save Analysis — we'll re-insert it under the chart preview */}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* ─── Upload Form ───────────────────────────────────────── */}
         <div className="lg:col-span-2 bg-white rounded-lg shadow-lg p-8 space-y-6">
@@ -353,54 +359,63 @@ export default function Upload({ history, selectedEntry }) {
         </div>
       </div>
 
-      {/* ─── Chart Preview with Inline Controls ─────────────────────── */}
+      {/* ─── Unified Chart & Minimal Controls Card ─────────────────── */}
       {previewData && (
-        <div className="mt-8 flex flex-col md:flex-row gap-6">
-          {/* Chart preview */}
-          <div className="md:flex-1 bg-white rounded-lg shadow-lg p-6">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">Chart Preview</h3>
-            <ChartComponent data={previewData} />
-          </div>
-          {/* Chart controls */}
-          <div className="md:w-1/3 bg-white rounded-lg shadow-lg p-6 space-y-4">
-            <h3 className="text-lg font-semibold text-gray-800">Adjust Chart</h3>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">X-Axis Column</label>
+        <div className="mt-8 bg-white rounded-lg shadow-lg p-4">
+          <div className="flex flex-wrap items-center justify-between mb-3 gap-2">
+            {/* inline axis + type selectors */}
+            <div className="flex items-center space-x-2">
               <select
                 value={xAxis}
                 onChange={e => setXAxis(e.target.value)}
-                className="block w-full border-gray-300 rounded-md p-2"
+                className="text-sm p-1 border-gray-300 rounded"
               >
-                <option value="">Choose column…</option>
+                <option disabled value="">X Axis</option>
                 {columns.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Y-Axis Column</label>
               <select
                 value={yAxis}
                 onChange={e => setYAxis(e.target.value)}
-                className="block w-full border-gray-300 rounded-md p-2"
+                className="text-sm p-1 border-gray-300 rounded"
               >
-                <option value="">Choose column…</option>
+                <option disabled value="">Y Axis</option>
                 {columns.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Chart Type</label>
               <select
                 value={chartType}
                 onChange={e => setChartType(e.target.value)}
-                className="block w-full border-gray-300 rounded-md p-2"
+                className="text-sm p-1 border-gray-300 rounded"
               >
                 <option value="bar">Bar</option>
                 <option value="line">Line</option>
                 <option value="pie">Pie</option>
                 <option value="doughnut">Doughnut</option>
-                <option value="polarArea">Polar Area</option>
+                <option value="polarArea">Polar</option>
                 <option value="radar">Radar</option>
               </select>
             </div>
+            {/* compact action buttons */}
+            <div className="flex space-x-1">
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="text-sm px-2 py-1 bg-indigo-600 text-white rounded disabled:opacity-50"
+              >
+                {saving ? '…' : 'Save'}
+              </button>
+              <button
+                onClick={exportAsImage}
+                className="text-sm px-2 py-1 bg-gray-200 rounded"
+              >PNG</button>
+              <button
+                onClick={exportAsPDF}
+                className="text-sm px-2 py-1 bg-gray-200 rounded"
+              >PDF</button>
+            </div>
+          </div>
+          {/* chart stays full width */}
+          <div className="w-full">
+            <ChartComponent ref={chartRef} data={previewData} />
           </div>
         </div>
       )}

@@ -1,13 +1,11 @@
 // src/components/RecentUploads.js
 import React from 'react';
 
-function RecentUploads({ history = [], limit = 5 }) {
-  const items = history.slice(0, limit);
-
+function RecentUploads({ history }) {
   return (
     <div className="p-4">
       <h3 className="text-xl font-semibold mb-2">📂 Recent Uploads</h3>
-      {items.length === 0 ? (
+      {history.length === 0 ? (
         <p className="text-gray-500">No uploads yet.</p>
       ) : (
         <table className="min-w-full text-sm text-left border mt-2">
@@ -19,13 +17,11 @@ function RecentUploads({ history = [], limit = 5 }) {
             </tr>
           </thead>
           <tbody>
-            {items.map((item, idx) => (
-              <tr key={idx} className="odd:bg-white even:bg-gray-50">
-                <td className="px-2 py-1 border">{item.fileName}</td>
-                <td className="px-2 py-1 border">
-                  {new Date(item.uploadDate).toLocaleDateString()}
-                </td>
-                <td className="px-2 py-1 border">{item.rows ?? 'N/A'}</td>
+            {history.slice(0, 5).map((item, idx) => (
+              <tr key={idx}>
+                <td className="px-2 py-1 border">{item.filename}</td>
+                <td className="px-2 py-1 border">{new Date(item.date).toLocaleDateString()}</td>
+                <td className="px-2 py-1 border">{item.rows}</td>
               </tr>
             ))}
           </tbody>

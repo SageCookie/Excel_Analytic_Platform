@@ -6,6 +6,7 @@ const authRoutes = require('./routes/authRoutes');
 const { protect, isAdmin } = require('./middleware/authMiddleware');
 const uploadRoutes = require('./routes/uploadRoutes');
 const historyRoutes = require('./routes/history');
+const analysisRoutes = require('./routes/analysisRoutes');
 
 
 
@@ -25,6 +26,7 @@ app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/history', historyRoutes);
+app.use('/api/analysis', analysisRoutes);
 
 
 

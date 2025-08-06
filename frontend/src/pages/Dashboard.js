@@ -263,7 +263,17 @@ export default function Dashboard() {
 
             {/* ─── Saved Analyses tab ───────────────────────────────────── */}
             {active === 'Saved Analyses' && (
-              <SavedAnalyses history={history} onDelete={handleDeleteHistory}/>
+              <SavedAnalyses onView={analysis => {
+    // `analysis` has: historyId, xAxis, yAxis, chartType
+    setSelectedEntry({
+      _id:       analysis.historyId._id,    // for download
+      fileName:  analysis.historyId.fileName,
+      xAxis:     analysis.xAxis,
+      yAxis:     analysis.yAxis,
+      chartType: analysis.chartType
+    });
+    setActive('Upload File');
+  }}/>
             )}
 
             {/* ─── Profile tab ───────────────────────────────────────────── */}
